@@ -22,12 +22,22 @@ public class TCPClient {
      * @param port TCP port of the chat server
      * @return True on success, false otherwise
      */
-    public boolean connect(String host, int port) {
+    public boolean connect(String host, int port){
+        try {
+            connection = new Socket(host, port);
+
+        } catch (IOException e) {
+            e.printStackTrace();
+
+            return false;
+        }
         // TODO Step 1: implement this method
         // Hint: Remember to process all exceptions and return false on error
         // Hint: Remember to set up all the necessary input/output stream variables
-        return false;
+        return connection.isConnected();
     }
+    git config --global user.email "you@example.com"
+    git config --global user.name "Your Name"
 
     /**
      * Close the socket. This method must be synchronized, because several
@@ -39,6 +49,11 @@ public class TCPClient {
      * that no two threads call this method in parallel.
      */
     public synchronized void disconnect() {
+        try {
+            connection.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         // TODO Step 4: implement this method
         // Hint: remember to check if connection is active
     }
@@ -278,3 +293,4 @@ public class TCPClient {
         // TODO Step 8: Implement this method
     }
 }
+
