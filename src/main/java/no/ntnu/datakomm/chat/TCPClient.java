@@ -28,7 +28,7 @@ public class TCPClient {
         // Hint: Remember to set up all the necessary input/output stream variables
         boolean success = false;
         try {
-            if (isConnectionActive()) {
+            if (!isConnectionActive()) {
                 connection = new Socket(host, port);
                 success = connection.isConnected();
             } else {
@@ -53,6 +53,7 @@ public class TCPClient {
         try {
             if(isConnectionActive())
             connection.close();
+            onDisconnect();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -62,7 +63,7 @@ public class TCPClient {
      * @return true if the connection is active (opened), false if not.
      */
     public boolean isConnectionActive() {
-        return connection.isConnected();
+        return connection != null;
     }
 
     /**
@@ -128,6 +129,9 @@ public class TCPClient {
         // TODO Step 6: Implement this method
         // Hint: Reuse sendCommand() method
         // Hint: update lastError if you want to store the reason for the error.
+        if (message.startsWith("privmsg")){
+            sendCommand(recipient + message + "\n" );
+            }
         return false;
     }
 
@@ -158,11 +162,7 @@ public class TCPClient {
             } catch (IOException e) {
                 lastError = ("Reading from socket failed: " + e.getMessage());
                 msgFromServer = lastError;
-                try {
-                    connection.close();
-                } catch (IOException ex) {
-                    ex.printStackTrace();
-                }
+                disconnect();
             }
         }
         return msgFromServer;
@@ -213,7 +213,9 @@ public class TCPClient {
                 case "loginerr":
                     onLoginResult(false, waitServerResponse());
                     break;
-
+                case "cmderr":
+                    onCmdError("Command not supported!");
+                    break;
 
 
             }
@@ -277,6 +279,10 @@ public class TCPClient {
     private void onDisconnect() {
         // TODO Step 4: Implement this method
         // Hint: all the onXXX() methods will be similar to onLoginResult()
+        for (ChatListener l : listeners) {
+            l.onDisconnect();
+        }
+
     }
 
     /**
@@ -315,6 +321,9 @@ public class TCPClient {
      */
     private void onCmdError(String errMsg) {
         // TODO Step 7: Implement this method
+        for (ChatListener l : listeners) {
+            l.onCommandError(errMsg);
+        }
     }
 
     /**
