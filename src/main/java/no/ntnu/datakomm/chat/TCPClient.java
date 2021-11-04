@@ -1,7 +1,9 @@
 package no.ntnu.datakomm.chat;
 
 import java.io.*;
+import java.lang.reflect.Array;
 import java.net.*;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -9,6 +11,19 @@ public class TCPClient {
     private PrintWriter toServer;
     private BufferedReader fromServer;
     private Socket connection;
+    private boolean loggedIn;
+
+    private static final String CMD_PUBLIC_MESSAGE = "msg";
+    private static final String CMD_PRIVATE_MESSAGE = "privmsg";
+    private static final String CMD_MSG_OK = "msgok";
+    private static final String CMD_MSG_ERROR = "msgerr";
+    private static final String CMD_ERROR = "cmderr";
+    private static final String CMD_HELP = "help";
+    private static final String CMD_LOGIN = "login";
+    private static final String CMD_LOGIN_OK = "loginok";
+    private static final String CMD_LOGIN_ERROR = "loginerr";
+    private static final String CMD_USERS = "users";
+    private static final String CMD_SUPPORTED = "supported";
 
     // Hint: if you want to store a message for the last error, store it here
     private String lastError = null;
@@ -74,15 +89,15 @@ public class TCPClient {
      */
     private boolean sendCommand(String cmd) {
         try {
-            if (connection.isConnected()) {
-                toServer = new PrintWriter(connection.getOutputStream(), true);
-                toServer.println(cmd);
-                return true;
-            }
+            toServer = new PrintWriter(connection.getOutputStream(), true);
+            toServer.println(cmd);
+            return true;
+
         } catch (IOException e) {
             lastError = ("Could not send message: + " + e.getMessage());
+            return false;
         }
-        return false;
+
     }
 
     /**
@@ -92,11 +107,14 @@ public class TCPClient {
      * @return true if message sent, false on error
      */
     public boolean sendPublicMessage(String message) {
-        if (message.startsWith("msg")){
-            sendCommand(message + "\n" );
+        boolean success = false;
+        try{
+            sendCommand(CMD_PUBLIC_MESSAGE +" " + message );
+            success = true;
+        }catch (Exception e){
+            lastError = ("Failed to send public message: " + e.getMessage());
         }
-
-        return false;
+        return success;
     }
 
     /**
@@ -105,7 +123,7 @@ public class TCPClient {
      * @param username Username to use
      */
     public void tryLogin(String username) {
-        sendCommand("login " + username + "\n");
+        sendCommand(CMD_LOGIN + " " + username + "\n");
     }
 
     /**
@@ -116,6 +134,7 @@ public class TCPClient {
         // TODO Step 5: implement this method
         // Hint: Use Wireshark and the provided chat client reference app to find out what commands the
         // client and server exchange for user listing.
+        this.sendCommand(CMD_USERS);
     }
 
     /**
@@ -126,13 +145,20 @@ public class TCPClient {
      * @return true if message sent, false on error
      */
     public boolean sendPrivateMessage(String recipient, String message) {
+        boolean success = false;
         // TODO Step 6: Implement this method
         // Hint: Reuse sendCommand() method
         // Hint: update lastError if you want to store the reason for the error.
-        if (message.startsWith("privmsg")){
-            sendCommand(recipient + message + "\n" );
+        try {
+            if (loggedIn) {
+                sendCommand(CMD_PRIVATE_MESSAGE + recipient + " " + message + "\n");
+                success = true;
             }
-        return false;
+        }catch (Exception e){
+            lastError = ("Failed to send private message: " + e.getMessage());
+            success =  false;
+        }
+        return success;
     }
 
 
@@ -142,6 +168,7 @@ public class TCPClient {
     public void askSupportedCommands() {
         // TODO Step 8: Implement this method
         // Hint: Reuse sendCommand() method
+        sendCommand(CMD_HELP);
     }
 
 
@@ -207,28 +234,35 @@ public class TCPClient {
             String message[] = waitServerResponse().split(" ");
             String command = message[0];
             switch (command) {
-                case "loginok":
+                case CMD_LOGIN_OK:
                     onLoginResult(true, waitServerResponse());
+                    loggedIn = true;
                     break;
-                case "loginerr":
+                case CMD_LOGIN_ERROR:
                     onLoginResult(false, waitServerResponse());
                     break;
-                case "cmderr":
+                case CMD_ERROR:
                     onCmdError("Command not supported!");
                     break;
-
+                case CMD_USERS:
+                    onUsersList(Arrays.copyOfRange(message, 1, message.length));
+                    break;
+                case CMD_PUBLIC_MESSAGE:
+                    onMsgReceived(false, message[1], Arrays.copyOfRange(message, 2, message.length).toString());
+                    break;
+                case CMD_PRIVATE_MESSAGE:
+                    onMsgReceived(true, message[1], Arrays.copyOfRange(message, 2, message.length).toString());
+                    break;
+                case CMD_MSG_ERROR:
+                    onMsgError("Something went wrong with the last private message sent from this client");
+                    break;
+                case CMD_MSG_OK:
+                    break;
+               // case CMD_SUPPORTED:
+                    //onSupported(Arrays.copyOfRange(message, 1, message.length));
+                   // break;
 
             }
-
-            // TODO Step 5: update this method, handle user-list response from the server
-            // Hint: In Step 5 reuse onUserList() method
-
-            // TODO Step 7: add support for incoming chat messages from other users (types: msg, privmsg)
-            // TODO Step 7: add support for incoming message errors (type: msgerr)
-            // TODO Step 7: add support for incoming command errors (type: cmderr)
-            // Hint for Step 7: call corresponding onXXX() methods which will notify all the listeners
-
-            // TODO Step 8: add support for incoming supported command list (type: supported)
 
         }
     }
@@ -292,6 +326,9 @@ public class TCPClient {
      */
     private void onUsersList(String[] users) {
         // TODO Step 5: Implement this method
+        for(ChatListener l : listeners){
+            l.onUserList(users);
+        }
     }
 
     /**
@@ -303,6 +340,12 @@ public class TCPClient {
      */
     private void onMsgReceived(boolean priv, String sender, String text) {
         // TODO Step 7: Implement this method
+        TextMessage textMessage = new TextMessage(sender, priv, text);
+        if(priv){
+            for(ChatListener l : listeners){
+                l.onMessageReceived(textMessage);
+            }
+        }
     }
 
     /**
@@ -312,6 +355,9 @@ public class TCPClient {
      */
     private void onMsgError(String errMsg) {
         // TODO Step 7: Implement this method
+        for (ChatListener l : listeners) {
+            l.onMessageError(errMsg);
+        }
     }
 
     /**
@@ -334,6 +380,9 @@ public class TCPClient {
      */
     private void onSupported(String[] commands) {
         // TODO Step 8: Implement this method
+        for (ChatListener l : listeners) {
+            l.onSupportedCommands(commands);
+        }
     }
 }
 
