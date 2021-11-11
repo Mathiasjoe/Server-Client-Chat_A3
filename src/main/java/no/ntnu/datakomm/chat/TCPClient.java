@@ -143,10 +143,10 @@ public class TCPClient {
     public boolean sendPrivateMessage(String recipient, String message) {
         boolean success = false;
         try {
-            sendCommand(CMD_PRIVATE_MESSAGE + recipient + " " + message);
+            sendCommand(CMD_PRIVATE_MESSAGE + " " + recipient + " " + message);
             success = true;
-        }catch (Exception e){
-            lastError = ("Failed to send private message: " + e.getMessage());
+        } catch (Exception e) {
+            lastError = ("Error sending priv message" + e.getMessage());
         }
         return success;
     }
@@ -216,9 +216,9 @@ public class TCPClient {
             try {
                 String[] serverResponseParts = waitServerResponse().split("\\s+", 2);
                 /// gets the first word from the response
-                String serverFirstResponsepart = serverResponseParts[0];
+                String serverFirstResponsePart = serverResponseParts[0];
 
-                switch (serverFirstResponsepart) {
+                switch (serverFirstResponsePart) {
                     case CMD_LOGIN_OK -> onLoginResult(true, null);
                     case CMD_LOGIN_ERROR -> onLoginResult(false, "Login error");
                     case CMD_PUBLIC_MESSAGE -> {
