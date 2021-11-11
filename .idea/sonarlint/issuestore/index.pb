@@ -17,7 +17,5 @@ r
 Bsrc/test/java/no/ntnu/datakomm/chat/helpers/EmptyChatListener.java,0\6\068f06de76f65993f8a7e300cfe3ab186b347d15
 N
 src/main/java/module-info.java,1\c\1c89a5491fbfda3fb050196d6a239f20200296e7
-f
-6src/test/java/no/ntnu/datakomm/chat/TcpClientTest.java,5\8\58faf9dc686b32793340b4b976e8a614e90e48d2
 7
 pom.xml,4\4\442292b8a7efeabbe4cc176709b833b1792140ec

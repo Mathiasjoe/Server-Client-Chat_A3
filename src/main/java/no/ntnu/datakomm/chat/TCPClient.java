@@ -11,7 +11,6 @@ public class TCPClient {
     private PrintWriter toServer;
     private BufferedReader fromServer;
     private Socket connection;
-    private boolean loggedIn;
 
     private static final String CMD_PUBLIC_MESSAGE = "msg";
     private static final String CMD_PRIVATE_MESSAGE = "privmsg";
@@ -105,7 +104,7 @@ public class TCPClient {
     public boolean sendPublicMessage(String message) {
         boolean success = false;
         try{
-            sendCommand(CMD_PUBLIC_MESSAGE +" " + message );
+            sendCommand(CMD_PUBLIC_MESSAGE + " " + message );
             success = true;
         }catch (Exception e){
             lastError = ("Failed to send public message: " + e.getMessage());
@@ -119,7 +118,11 @@ public class TCPClient {
      * @param username Username to use
      */
     public void tryLogin(String username) {
-        sendCommand(CMD_LOGIN + " " + username + "\n");
+        try{
+            sendCommand(CMD_LOGIN + " " + username);
+        }catch (Exception e){
+            lastError = ("Login Error: " + e.getMessage());
+        }
     }
 
     /**
@@ -140,10 +143,8 @@ public class TCPClient {
     public boolean sendPrivateMessage(String recipient, String message) {
         boolean success = false;
         try {
-            if (loggedIn) {
-                sendCommand(CMD_PRIVATE_MESSAGE + recipient + " " + message + "\n");
-                success = true;
-            }
+            sendCommand(CMD_PRIVATE_MESSAGE + recipient + " " + message);
+            success = true;
         }catch (Exception e){
             lastError = ("Failed to send private message: " + e.getMessage());
         }
@@ -188,7 +189,7 @@ public class TCPClient {
      * @return Error message or "" if there has been no error
      */
     public String getLastError() {
-        if (lastError != null) {
+        if(lastError != null) {
             return lastError;
         } else {
             return "";
@@ -212,41 +213,40 @@ public class TCPClient {
      */
     private void parseIncomingCommands() {
         while (isConnectionActive()) {
-            // Reuse waitServerResponse() method
-            // Use a switch-case to check what type of response is received from the server and act on the response
-            String message[] = waitServerResponse().split(" ");
-            String command = message[0];
-            switch (command) {
-                case CMD_LOGIN_OK:
-                    onLoginResult(true, waitServerResponse());
-                    loggedIn = true;
-                    break;
-                case CMD_LOGIN_ERROR:
-                    onLoginResult(false, waitServerResponse());
-                    break;
-                case CMD_ERROR:
-                    onCmdError("Command not supported!");
-                    break;
-                case CMD_USERS:
-                    onUsersList(Arrays.copyOfRange(message, 1, message.length));
-                    break;
-                case CMD_PUBLIC_MESSAGE:
-                    onMsgReceived(false, message[1], Arrays.copyOfRange(message, 2, message.length).toString());
-                    break;
-                case CMD_PRIVATE_MESSAGE:
-                    onMsgReceived(true, message[1], Arrays.copyOfRange(message, 2, message.length).toString());
-                    break;
-                case CMD_MSG_ERROR:
-                    onMsgError("Something went wrong with the last private message sent from this client");
-                    break;
-                case CMD_MSG_OK:
-                    break;
-               // case CMD_SUPPORTED:
-                    //onSupported(Arrays.copyOfRange(message, 1, message.length));
-                   // break;
+            try {
+                String[] serverResponseParts = waitServerResponse().split("\\s+", 2);
+                /// gets the first word from the response
+                String serverFirstResponsepart = serverResponseParts[0];
 
+                switch (serverFirstResponsepart) {
+                    case CMD_LOGIN_OK -> onLoginResult(true, null);
+                    case CMD_LOGIN_ERROR -> onLoginResult(false, "Login error");
+                    case CMD_PUBLIC_MESSAGE -> {
+                        String[] serverResponse = serverResponseParts[1].split("\\s+", 2);
+                        onMsgReceived(false, serverResponse[0], serverResponse[1]);
+                    }
+                    case CMD_MSG_OK -> System.out.println("Message ok");
+                    case CMD_MSG_ERROR -> onMsgError(serverResponseParts[1]);
+                    case CMD_PRIVATE_MESSAGE -> {
+                        String[] privMsgResponse = serverResponseParts[1].split("\\s+", 2);
+                        onMsgReceived(true, privMsgResponse[0], privMsgResponse[1]);
+                    }
+                    case CMD_USERS -> {
+                        System.out.println(serverResponseParts[1]);
+                        String[] userList = serverResponseParts[1].split("\\s+");
+                        onUsersList(userList);
+                        break;
+                    }
+                    case CMD_SUPPORTED -> {
+                        String[] supported = serverResponseParts[1].split("\\s+");
+                        onSupported(supported);
+                    }
+                    case CMD_ERROR -> onCmdError(serverResponseParts[0]);
+                    default -> System.out.println("Nothing");
+                }
+            } catch (NullPointerException e) {
+                System.out.println("Error from server" + e.getMessage());
             }
-
         }
     }
 
@@ -320,10 +320,8 @@ public class TCPClient {
      */
     private void onMsgReceived(boolean priv, String sender, String text) {
         TextMessage textMessage = new TextMessage(sender, priv, text);
-        if(priv){
-            for(ChatListener l : listeners){
+        for(ChatListener l : listeners){
                 l.onMessageReceived(textMessage);
-            }
         }
     }
 
